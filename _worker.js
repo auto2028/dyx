@@ -9,7 +9,7 @@ let FileName = 'CF-Workers-SUB';
 let SUBUpdateTime = 6; //自定义订阅更新时间，单位小时
 let total = 99;//TB
 let timestamp = 4102329600000;//2099-12-31
-
+let PROXYIP = '127.0.0.1'; // 自定义代理 IP 地址
 //节点链接 + 订阅链接
 let MainData = `
 vless://d87eaae1-fe70-46ad-a499-02d5cbe85181@[2606:4700:9b0b:67de:9048:1205:ec0d:93ed]:443/?type=ws&encryption=none&host=vless1.durl.nyc.mn&path=%2F%3Fed%3D2560&security=tls&sni=vless1.durl.nyc.mn#%E9%A6%99%E6%B8%AF5
@@ -40,6 +40,8 @@ export default {
 		ChatID = env.TGID || ChatID; 
 		TG =  env.TG || TG; 
 		subconverter = env.SUBAPI || subconverter;
+		PROXYIP = env.PROXYIP || PROXYIP; // 从环境变量中获取 PROXYIP
+
 		if( subconverter.includes("http://") ){
 			subconverter = subconverter.split("//")[1];
 			subProtocol = 'http';
@@ -56,7 +58,7 @@ export default {
 		const timeTemp = Math.ceil(currentDate.getTime() / 1000);
 		const fakeToken = await MD5MD5(`${mytoken}${timeTemp}`);
 		//console.log(`${fakeUserID}\n${fakeHostName}`); // 打印fakeID
-
+                console.log(`Current Proxy IP: ${PROXYIP}`);
 		let UD = Math.floor(((timestamp - Date.now())/timestamp * total * 1099511627776 )/2);
 		total = total * 1099511627776 ;
 		let expire= Math.floor(timestamp / 1000) ;
@@ -122,7 +124,7 @@ export default {
 			//去重
 			const uniqueLines = new Set(text.split('\n'));
 			const result = [...uniqueLines].join('\n');
-			//console.log(result);
+			//(result);
 			
 			const base64Data = btoa(result);
 
@@ -362,7 +364,7 @@ async function getSUB(api, 追加UA, userAgentHeader) {
 			};
 		});
 	
-		console.log(modifiedResponses); // 输出修改后的响应数组
+		(modifiedResponses); // 输出修改后的响应数组
 	
 		for (const response of modifiedResponses) {
 			// 检查响应状态是否为'fulfilled'
