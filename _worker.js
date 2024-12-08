@@ -6,6 +6,7 @@ let FileName = 'CF-Workers-SUB'; // 文件名
 let SUBUpdateTime = 6; // 订阅更新时间（小时）
 let total = 99; // 总流量（TB）
 let timestamp = 4102329600000; // 过期时间（2099-12-31）
+let PROXYIP = ''; // 代理IP，可以为空，默认无代理
 
 // 节点和订阅链接
 let MainData = `
@@ -30,6 +31,7 @@ export default {
     BotToken = env.TGTOKEN || BotToken;
     ChatID = env.TGID || ChatID;
     TG = env.TG || TG;
+    PROXYIP = env.PROXYIP || PROXYIP;  // 设置代理IP
     subconverter = env.SUBAPI || subconverter;
     subconfig = env.SUBCONFIG || subconfig;
     FileName = env.SUBNAME || FileName;
