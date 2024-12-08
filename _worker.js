@@ -105,6 +105,9 @@ export default {
 			//console.log(订阅转换URL);
 			let req_data = MainData;
 
+			let proxyBaseURL = `http://${PROXYIP}`;
+let proxiedURL           = `${proxyBaseURL}${url.pathname}${url.search}`;
+
 			let 追加UA = 'v2rayn';
 			if (url.searchParams.has('clash')) 追加UA = 'clash';
 			else if(url.searchParams.has('singbox')) 追加UA = 'singbox';
