@@ -9,7 +9,7 @@ let timestamp = 4102329600000;//2099-12-31
 
 //节点链接 + 订阅链接
 let MainData = `
-vless://b7a392e2-4ef0-4496-90bc-1c37bb234904@cf.090227.xyz:443?encryption=none&security=tls&sni=edgetunnel-2z2.pages.dev&fp=random&type=ws&host=edgetunnel-2z2.pages.dev&path=%2F%3Fed%3D2048#%E5%8A%A0%E5%85%A5%E6%88%91%E7%9A%84%E9%A2%91%E9%81%93t.me%2FCMLiussss%E8%A7%A3%E9%94%81%E6%9B%B4%E5%A4%9A%E4%BC%98%E9%80%89%E8%8A%82%E7%82%B9
+vless://b7a392e2-4ef0-4496-90bc-1c37bb234904@cf.090227.xyz:443?encryption=none&security=tls&sni=edgetunnel-2z2.pages.dev&fp=random&type=ws&host=edgetunnel-2z2.pages.dev&path=%2F%3Fed%3D2048#%E5%8A%A0%[...]
 https://sub.xf.free.hr/auto
 `
 
@@ -87,9 +87,9 @@ export default {
                     },
                 });
             }
-	}
-else {
-            await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
+	    }
+        else {
+            await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + [...]`);
             let 订阅格式 = 'base64';
             if (userAgent.includes('null') || userAgent.includes('subconverter') || userAgent.includes('nekobox') || userAgent.includes(('CF-Workers-SUB').toLowerCase())){
                 订阅格式 = 'base64';
@@ -169,17 +169,17 @@ else {
                     }
                 });
             } else if (订阅格式 == 'clash'){
-                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=clash&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=clash&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=fal[...]`;
             } else if (订阅格式 == 'singbox'){
-                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=singbox&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=singbox&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=f[...]`;
             } else if (订阅格式 == 'surge'){
-                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=surge&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&new_name=true`;
+                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=surge&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=fal[...]`;
             } else if (订阅格式 == 'quanx'){
-                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=quanx&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false&udp=true`;
+                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=quanx&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=fal[...]`;
             } else if (订阅格式 == 'loon'){
-                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=loon&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false&tfo=false&scv=true&fdn=false&sort=false`;
-	    }
-try {
+                subconverterUrl = `${subProtocol}://${subconverter}/sub?target=loon&url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=fals[...]`;
+	        }
+            try {
                 const subconverterResponse = await fetch(subconverterUrl);
                 
                 if (!subconverterResponse.ok) {
@@ -328,20 +328,21 @@ async function proxyURL(proxyURL, url, PROXYIP) {
         // 解析原始 URL
         let parsedURL = new URL(fullURL);
         
-        // 构建新的请求 URL
-        const newURL = new URL(url.pathname + url.search, `${parsedURL.protocol}//${PROXYIP || parsedURL.hostname}`);
+        // 构造新的 URL时，仍采用原始的 hostname
+        const newURL = new URL(url.pathname + url.search, `${parsedURL.protocol}//${parsedURL.hostname}`);
         
         console.log('Original URL:', fullURL);
         console.log('Proxy IP:', PROXYIP);
         console.log('New URL:', newURL.toString());
 
-        // 设置请求选项
+        // 设置请求选项，使用 cf.resolveOverride 来指定反向代理的IP（如果设置了PROXYIP）
         const requestOptions = {
             method: 'GET',
             headers: {
-                'Host': parsedURL.hostname, // 添加原始主机名作为 Host 头
+                'Host': parsedURL.hostname, // 保持原始主机名
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
+            },
+            cf: PROXYIP ? { resolveOverride: PROXYIP } : {}
         };
 
         // 发送请求
@@ -426,7 +427,7 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
                 } else if (isValidBase64(content)){
                     newapi += base64Decode(content) + '\n';
                 } else {
-                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#%E5%BC%82%E5%B8%B8%E8%AE%A2%E9%98%85%20${response.apiUrl.split('://')[1].split('/')[0]}`;
+                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#%E5%BC%82%E5%B8%B8%E8%AE%A2%E9%98%85%20${response.apiUrl.split(':/[...]
                     console.log(异常订阅LINK);
                     异常订阅 += `${异常订阅LINK}\n`;
                 }
