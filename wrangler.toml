@@ -1,0 +1,22 @@
+name = "dyx"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+TOKEN = ""
+TGTOKEN = ""
+TGID = ""
+TG = "0"
+SUBAPI = ""
+SUBCONFIG = ""
+SUBNAME = ""
+LINK = ""
+LINKSUB = ""
+PROXYIP = ""
+SUBUPTIME = "6"
+
+[build]
+command = ""
+[build.upload]
+format = "modules"
+main = "./index.js"
