@@ -1,21 +1,21 @@
-let mytoken = 'auto';
-let BotToken = '';
-let ChatID = '';
-let TG = 0;
+let mytoken = 'auto'; //可以随便取，或者uuid生成，https://1024tools.com/uuid
+let BotToken = ''; //可以为空，或者@BotFather中输入/start，/newbot，并关注机器人
+let ChatID = ''; //可以为空，或者@userinfobot中获取，/start
+let TG = 0; //小白勿动， 开发者专用，1 为推送所有的访问信息，0 为不推送订阅转换后端的访问信息与异常访问
 let FileName = 'CF-Workers-SUB';
-let SUBUpdateTime = 6;
-let total = 99;
-let timestamp = 4102329600000;
+let SUBUpdateTime = 6; //自定义订阅更新时间，单位小时
+let total = 99; //TB
+let timestamp = 4102329600000; //2099-12-31
 
-let MainData = ``;
+let MainData = ``;  // 初始化为空字符串,后续从环境变量获取
 let urls = [];
-let subconverter = "SUBAPI.fxxk.dedyn.io";
+let subconverter = "SUBAPI.fxxk.dedyn.io"; 
 let subconfig = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini";
 let subProtocol = 'https';
-let PROXYIP = '';
+let PROXYIP = ''; 
 
-const TIMEOUT_MS = 5000;
-const TEST_TIMEOUT = 3000;
+const TIMEOUT_MS = 5000; // 请求超时时间设置为5秒
+const TEST_TIMEOUT = 3000; // 节点测试超时时间3秒
 
 export default {
     async fetch(request, env) {
@@ -26,7 +26,10 @@ export default {
             const token = url.searchParams.get('token');
 
             if (url.pathname === '/health') {
-                return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+                return new Response('OK', {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/plain' }
+                });
             }
 
             mytoken = env.TOKEN || mytoken;
@@ -34,7 +37,7 @@ export default {
             ChatID = env.TGID || ChatID;
             TG = env.TG || TG;
             subconverter = env.SUBAPI || subconverter;
-
+            
             if (subconverter.includes("http://")) {
                 subconverter = subconverter.split("//")[1];
                 subProtocol = 'http';
@@ -72,26 +75,29 @@ export default {
             }
             MainData = 自建节点;
             urls = await ADD(订阅链接);
-            console.log('MainData (Self-hosted nodes):', MainData);
+            console.log('MainData:', MainData);
             console.log('Subscription URLs:', urls);
 
             if (!(token == mytoken || token == fakeToken || url.pathname == ("/" + mytoken) || url.pathname.includes("/" + mytoken + "?"))) {
                 if (TG == 1 && url.pathname !== "/" && url.pathname !== "/favicon.ico") {
-                    await sendMessage(`#异常访问 ${FileName}`,
+                    await sendMessage(`#异常访问 ${FileName}`, 
                         request.headers.get('CF-Connecting-IP'),
                         `UA: ${userAgent}\n域名: ${url.hostname}\n入口: ${url.pathname + url.search}`);
                 }
                 if (env.URL302) {
                     return Response.redirect(env.URL302, 302);
                 } else if (env.URL) {
-                    return await proxy mercuryURL(env.URL, url, PROXYIP);
+                    return await proxyURL(env.URL, url, PROXYIP);
                 } else {
-                    return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+                    return new Response(await nginx(), {
+                        status: 200,
+                        headers: { 'Content-Type': 'text/html; charset=UTF-8' }
+                    });
                 }
             }
 
-            await sendMessage(`#获取订阅 ${FileName}`,
-                request.headers.get('CF-Connecting-IP'),
+            await sendMessage(`#获取订阅 ${FileName}`, 
+                request.headers.get('CF-Connecting-IP'), 
                 `UA: ${userAgentHeader}\n域名: ${url.hostname}\n入口: ${url.pathname + url.search}`);
 
             let 订阅格式 = determineSubscriptionFormat(userAgent, url);
@@ -120,7 +126,10 @@ export default {
 
         } catch (error) {
             console.error('Worker Error:', error);
-            return new Response(`Worker Error: ${error.message}`, { status: 500, headers: { 'Content-Type': 'text/plain' } });
+            return new Response(`Worker Error: ${error.message}`, {
+                status: 500,
+                headers: { 'Content-Type': 'text/plain' }
+            });
         }
     }
 };
@@ -135,27 +144,31 @@ function arrayBufferToBase64(buffer) {
     const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     let result = '';
     let i = 0;
+    
     while (i < buffer.length) {
         const octet1 = buffer[i++];
         const octet2 = i < buffer.length ? buffer[i++] : 0;
         const octet3 = i < buffer.length ? buffer[i++] : 0;
+        
         const triple = (octet1 << 16) + (octet2 << 8) + octet3;
+        
         result += base64Chars.charAt((triple >> 18) & 0x3F) +
-            base64Chars.charAt((triple >> 12) & 0x3F) +
-            (i > buffer.length + 1 ? '=' : base64Chars.charAt((triple >> 6) & 0x3F)) +
-            (i > buffer.length ? '=' : base64Chars.charAt(triple & 0x3F));
+                 base64Chars.charAt((triple >> 12) & 0x3F) +
+                 (i > buffer.length + 1 ? '=' : base64Chars.charAt((triple >> 6) & 0x3F)) +
+                 (i > buffer.length ? '=' : base64Chars.charAt(triple & 0x3F));
     }
+    
     return result;
 }
 
 function determineSubscriptionFormat(userAgent, url) {
-    if (userAgent.includes('null') || userAgent.includes('subconverter') ||
+    if (userAgent.includes('null') || userAgent.includes('subconverter') || 
         userAgent.includes('nekobox') || userAgent.includes(('CF-Workers-SUB').toLowerCase())) {
         return 'base64';
     } else if (userAgent.includes('clash') || (url.searchParams.has('clash') && !userAgent.includes('subconverter'))) {
         return 'clash';
-    } else if (userAgent.includes('sing-box') || userAgent.includes('singbox') ||
-        ((url.searchParams.has('sb') || url.searchParams.has('singbox')) && !userAgent.includes('subconverter'))) {
+    } else if (userAgent.includes('sing-box') || userAgent.includes('singbox') || 
+               ((url.searchParams.has('sb') || url.searchParams.has('singbox')) && !userAgent.includes('subconverter'))) {
         return 'singbox';
     } else if (userAgent.includes('surge') || (url.searchParams.has('surge') && !userAgent.includes('subconverter'))) {
         return 'surge';
@@ -177,6 +190,7 @@ function determineUserAgent(url) {
 }
 
 async function generateResponse(format, base64Data, token, fakeToken, 订阅转换URL, subProtocol, subconverter, subconfig, SUBUpdateTime, UD, total, expire, FileName) {
+    console.log(`Generating response for format: ${format}, Sub URL: ${订阅转换URL}`);
     const headers = {
         "content-type": "text/plain; charset=utf-8",
         "Profile-Update-Interval": `${SUBUpdateTime}`,
@@ -184,14 +198,14 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
     };
 
     if (format === 'base64' || token === fakeToken) {
-        console.log('Returning base64 format:', base64Data);
+        console.log('Returning base64 format');
         return new Response(base64Data, { headers });
     }
 
     const baseUrl = `${subProtocol}://${subconverter}/sub?url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false`;
     let subconverterUrl;
 
-    switch (format) {
+    switch(format) {
         case 'clash':
             subconverterUrl = `${baseUrl}&target=clash`;
             break;
@@ -208,7 +222,7 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
             subconverterUrl = `${baseUrl}&target=loon`;
             break;
         default:
-            console.log('Returning default base64 format:', base64Data);
+            console.log('Returning default base64 format');
             return new Response(base64Data, { headers });
     }
 
@@ -216,16 +230,10 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
     try {
         const subconverterResponse = await fetch(subconverterUrl, { timeout: TIMEOUT_MS });
         if (!subconverterResponse.ok) {
-            console.error(`Subconverter failed with status: ${subconverterResponse.status}`);
-            console.log('Falling back to base64 data:', base64Data);
-            return new Response(base64Data, { headers });
+            throw new Error(`Subconverter request failed: ${subconverterResponse.status}`);
         }
         let content = await subconverterResponse.text();
         console.log('Subconverter response:', content);
-        if (!content.trim()) {
-            console.error('Subconverter returned empty content, falling back to base64');
-            return new Response(base64Data, { headers });
-        }
         if (format === 'clash') {
             content = await clashFix(content);
         }
@@ -233,7 +241,6 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
         return new Response(content, { headers });
     } catch (error) {
         console.error('Subconverter Error:', error);
-        console.log('Falling back to base64 data:', base64Data);
         return new Response(base64Data, { headers });
     }
 }
@@ -253,14 +260,21 @@ async function nginx() {
     <head>
     <title>Welcome to nginx!</title>
     <style>
-        body { width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif; }
+        body {
+            width: 35em;
+            margin: 0 auto;
+            font-family: Tahoma, Verdana, Arial, sans-serif;
+        }
     </style>
     </head>
     <body>
     <h1>Welcome to nginx!</h1>
-    <p>If you see this page, the nginx web server is successfully installed and working. Further configuration is required.</p>
-    <p>For online documentation and support please refer to <a href="http://nginx.org/">nginx.org</a>.<br/>
-    Commercial support is available at <a href="http://nginx.com/">nginx.com</a>.</p>
+    <p>If you see this page, the nginx web server is successfully installed and
+    working. Further configuration is required.</p>
+    <p>For online documentation and support please refer to
+    <a href="http://nginx.org/">nginx.org</a>.<br/>
+    Commercial support is available at
+    <a href="http://nginx.com/">nginx.com</a>.</p>
     <p><em>Thank you for using nginx.</em></p>
     </body>
     </html>
@@ -278,8 +292,9 @@ async function sendMessage(type, ip, add_data = "") {
             } else {
                 msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
             }
+
             const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(msg)}`;
-            await fetch(url, {
+            const tgResponse = await fetch(url, {
                 method: 'get',
                 headers: {
                     'Accept': 'text/html,application/xhtml+xml,application/xml;',
@@ -287,6 +302,10 @@ async function sendMessage(type, ip, add_data = "") {
                     'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
                 }
             });
+            
+            if (!tgResponse.ok) {
+                console.error('Telegram API Error:', await tgResponse.text());
+            }
         } catch (error) {
             console.error('Error sending Telegram message:', error);
         }
@@ -295,7 +314,15 @@ async function sendMessage(type, ip, add_data = "") {
 
 function base64Decode(str) {
     try {
-        const bytes = new Uint8Array(atob(str).split('').map(c => c.charCodeAt(0)));
+        // 移除可能的换行符并补齐填充字符
+        str = str.replace(/\s/g, '').replace(/=+$/, '');
+        while (str.length % 4 !== 0) str += '=';
+        
+        const binary = atob(str);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
         return new TextDecoder('utf-8').decode(bytes);
     } catch (error) {
         console.error('Base64 decode error:', error);
@@ -339,12 +366,15 @@ async function proxyURL(proxyURL, url, PROXYIP) {
     try {
         const URLs = await ADD(proxyURL);
         if (!URLs.length) throw new Error('No valid proxy URLs found');
+        
         const fullURL = URLs[Math.floor(Math.random() * URLs.length)];
         const parsedURL = new URL(fullURL);
         const newURL = new URL(url.pathname + url.search, `${parsedURL.protocol}//${parsedURL.hostname}`);
+        
         console.log('Original URL:', fullURL);
         console.log('Proxy IP:', PROXYIP);
         console.log('New URL:', newURL.toString());
+
         const requestOptions = {
             method: 'GET',
             headers: {
@@ -353,13 +383,16 @@ async function proxyURL(proxyURL, url, PROXYIP) {
             },
             cf: PROXYIP ? { resolveOverride: PROXYIP } : {}
         };
+
         const response = await fetch(newURL.toString(), requestOptions);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
         const newResponse = new Response(response.body, {
             status: response.status,
             statusText: response.statusText,
             headers: new Headers(response.headers)
         });
+
         newResponse.headers.set('X-Original-URL', fullURL);
         newResponse.headers.set('X-Proxy-IP', PROXYIP || 'Not Used');
         newResponse.headers.set('X-Debug-Info', 'Proxied by CF Worker');
@@ -371,29 +404,28 @@ async function proxyURL(proxyURL, url, PROXYIP) {
 }
 
 async function testNode(nodeUrl) {
-    // 临时跳过节点测试，确保不过滤节点
-    console.log(`Skipping node test for ${nodeUrl}`);
-    return true;
-/*
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT);
+        
         const urlMatch = nodeUrl.match(/@([^:]+):(\d+)/);
         if (!urlMatch) return false;
+        
         const host = urlMatch[1];
         const port = parseInt(urlMatch[2]);
+        
         const response = await fetch(`http://${host}:${port}`, {
             method: 'HEAD',
             signal: controller.signal,
             headers: { 'User-Agent': 'Node-Test/1.0' }
         });
+        
         clearTimeout(timeout);
         return response.ok;
     } catch (error) {
         console.log(`Node ${nodeUrl} test failed: ${error.message}`);
         return false;
     }
-*/
 }
 
 async function getSUB(api, request, 追加UA, userAgentHeader) {
@@ -405,76 +437,72 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
     let newapi = "";
     let 订阅转换URLs = "";
     let 异常订阅 = "";
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-    try {
-        const responses = await Promise.allSettled(api.map(apiUrl => {
-            // 处理嵌套 URL 的情况
-            let targetUrl = apiUrl;
-            if (apiUrl.includes('config/https:/') && !apiUrl.includes('config/https://')) {
-                targetUrl = apiUrl.replace('config/https:/', 'config/https://');
-                console.log(`Fixed nested URL: ${apiUrl} -> ${targetUrl}`);
+    const responses = await Promise.allSettled(api.map(apiUrl => 
+        getUrl(request, apiUrl, 追加UA, userAgentHeader, new AbortController())
+        .then(async response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const content = await response.text();
+            console.log(`Processing subscription URL: ${apiUrl}, Raw content: ${content.substring(0, 100)}...`);
+            return { url: apiUrl, content };
+        })
+    ));
+
+    for (const response of responses) {
+        if (response.status === 'fulfilled') {
+            const { url: apiUrl, content } = response.value;
+
+            if (!content || content === 'null') {
+                console.log(`Empty content from ${apiUrl}`);
+                continue;
             }
-            return getUrl(request, targetUrl, 追加UA, userAgentHeader, controller)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.text().then(text => ({ url: targetUrl, content: text }));
-                });
-        }));
 
-        for (const response of responses) {
-            if (response.status === 'fulfilled') {
-                const { url: apiUrl, content } = response.value;
-                console.log(`Processing subscription from ${apiUrl}:`, content);
-                if (!content || content === 'null') {
-                    console.log(`Empty content from ${apiUrl}`);
-                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(apiUrl)}`;
-                    异常订阅 += `${异常订阅LINK}\n`;
+            // 检查是否为 Clash 或 Sing-box 配置
+            if (content.includes('proxies') && content.includes('proxy-groups')) {
+                订阅转换URLs += "|" + apiUrl;
+                continue;
+            } else if (content.includes('outbounds') && content.includes('inbounds')) {
+                订阅转换URLs += "|" + apiUrl;
+                continue;
+            }
+
+            // 检查是否为节点列表
+            if (content.includes('://')) {
+                const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
+                const validNodes = await Promise.all(nodes.map(node => testNode(node).then(isValid => isValid ? node : null)));
+                newapi += validNodes.filter(n => n).join('\n') + '\n';
+                continue;
+            }
+
+            // 尝试 Base64 解码
+            if (isValidBase64(content)) {
+                const decoded = base64Decode(content);
+                if (decoded && decoded.includes('://')) {
+                    const nodes = decoded.split('\n').filter(line => line.trim() && line.includes('://'));
+                    const validNodes = await Promise.all(nodes.map(node => testNode(node).then(isValid => isValid ? node : null)));
+                    newapi += validNodes.filter(n => n).join('\n') + '\n';
                     continue;
                 }
-                if (content.includes('proxies') && content.includes('proxy-groups')) {
-                    订阅转换URLs += "|" + apiUrl;
-                } else if (content.includes('outbounds') && content.includes('inbounds')) {
-                    订阅转换URLs += "|" + apiUrl;
-                } else if (content.includes('://')) {
-                    const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
-                    console.log(`Nodes found in ${apiUrl}:`, nodes);
-                    const validNodes = await Promise.all(nodes.map(async node => {
-                        const isValid = await testNode(node);
-                        console.log(`Node ${node} is ${isValid ? 'valid' : 'invalid'}`);
-                        return isValid ? node : null;
-                    }));
-                    const validNodeList = validNodes.filter(n => n !== null);
-                    console.log(`Valid nodes from ${apiUrl}:`, validNodeList);
-                    newapi += validNodeList.join('\n') + '\n';
-                } else if (isValidBase64(content)) {
-                    const decoded = base64Decode(content);
-                    console.log(`Decoded Base64 from ${apiUrl}:`, decoded);
-                    const nodes = decoded.split('\n').filter(line => line.trim() && line.includes('://'));
-                    const validNodes = await Promise.all(nodes.map(async node => {
-                        const isValid = await testNode(node);
-                        console.log(`Node ${node} is ${isValid ? 'valid' : 'invalid'}`);
-                        return isValid ? node : null;
-                    }));
-                    const validNodeList = validNodes.filter(n => n !== null);
-                    console.log(`Valid nodes from decoded ${apiUrl}:`, validNodeList);
-                    newapi += validNodeList.join('\n') + '\n';
-                } else {
-                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(apiUrl)}`;
-                    console.log(`Invalid subscription: ${异常订阅LINK}`);
-                    异常订阅 += `${异常订阅LINK}\n`;
-                }
-            } else {
-                console.log(`Failed to fetch subscription: ${response.reason}`);
-                const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(response.reason)}`;
-                异常订阅 += `${异常订阅LINK}\n`;
             }
+
+            // 尝试 JSON 解析（常见于某些订阅服务）
+            try {
+                const jsonData = JSON.parse(content);
+                if (jsonData && jsonData.nodes) {
+                    const nodes = jsonData.nodes.filter(node => node && node.protocol && node.server);
+                    newapi += nodes.map(node => `${node.protocol}://${node.server}:${node.port}`).join('\n') + '\n';
+                    continue;
+                }
+            } catch (e) {
+                console.log(`Not a JSON subscription: ${apiUrl}`);
+            }
+
+            // 如果无法解析，标记为异常订阅
+            const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(apiUrl)}`;
+            异常订阅 += `${异常订阅LINK}\n`;
+        } else {
+            console.log(`Failed to fetch subscription: ${response.reason}`);
         }
-    } catch (error) {
-        console.error('GetSUB Error:', error);
-    } finally {
-        clearTimeout(timeout);
     }
 
     const 订阅内容 = await ADD(newapi + 异常订阅);
