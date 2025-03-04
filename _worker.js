@@ -155,21 +155,31 @@ export default {
     }
 };
 
-// 辅助函数
+// 修改后的 Base64 编码函数
 async function safeBase64Encode(data) {
-    try {
-        return btoa(data);
-    } catch (e) {
-        return await streamingBase64Encode(data);
-    }
+    const encoder = new TextEncoder();
+    const uint8Array = encoder.encode(data);
+    return arrayBufferToBase64(uint8Array);
 }
 
-async function streamingBase64Encode(data, chunkSize = DEFAULT_CHUNK_SIZE) {
+function arrayBufferToBase64(buffer) {
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     let result = '';
-    for(let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
-        result += btoa(chunk);
+    let i = 0;
+    
+    while (i < buffer.length) {
+        const octet1 = buffer[i++];
+        const octet2 = i < buffer.length ? buffer[i++] : 0;
+        const octet3 = i < buffer.length ? buffer[i++] : 0;
+        
+        const triple = (octet1 << 16) + (octet2 << 8) + octet3;
+        
+        result += base64Chars.charAt((triple >> 18) & 0x3F) +
+                 base64Chars.charAt((triple >> 12) & 0x3F) +
+                 (i > buffer.length + 1 ? '=' : base64Chars.charAt((triple >> 6) & 0x3F)) +
+                 (i > buffer.length ? '=' : base64Chars.charAt(triple & 0x3F));
     }
+    
     return result;
 }
 
@@ -407,7 +417,6 @@ async function proxyURL(proxyURL, url, PROXYIP) {
             headers: new Headers(response.headers)
         });
 
-        // 添加调试信息到响应头
         newResponse.headers.set('X-Original-URL', fullURL);
         newResponse.headers.set('X-Proxy-IP', PROXYIP || 'Not Used');
         newResponse.headers.set('X-Debug-Info', 'Proxied by CF Worker');
@@ -419,20 +428,17 @@ async function proxyURL(proxyURL, url, PROXYIP) {
     }
 }
 
-// 新增节点测试函数
 async function testNode(nodeUrl) {
     try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT);
         
-        // 提取节点的主机和端口
         const urlMatch = nodeUrl.match(/@([^:]+):(\d+)/);
         if (!urlMatch) return false;
         
         const host = urlMatch[1];
         const port = parseInt(urlMatch[2]);
         
-        // 简单的TCP连接测试
         const response = await fetch(`http://${host}:${port}`, {
             method: 'HEAD',
             signal: controller.signal,
@@ -468,7 +474,6 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
             .then(response => response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`)))
         ));
 
-        // 处理所有订阅响应
         for (const response of responses) {
             if (response.status === 'fulfilled') {
                 const content = response.value || 'null';
@@ -477,13 +482,11 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
                 } else if (content.includes('outbounds') && content.includes('inbounds')) {
                     订阅转换URLs += "|" + response.apiUrl;
                 } else if (content.includes('://')) {
-                    // 分割节点列表并测试每个节点
                     const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
                     const validNodes = await Promise.all(nodes.map(async node => {
                         const isValid = await testNode(node);
                         return isValid ? node : null;
                     }));
-                    // 只添加有效节点
                     newapi += validNodes.filter(n => n !== null).join('\n') + '\n';
                 } else if (isValidBase64(content)) {
                     const decoded = base64Decode(content);
