@@ -1,21 +1,21 @@
-let mytoken = 'auto'; //可以随便取，或者uuid生成，https://1024tools.com/uuid
-let BotToken = ''; //可以为空，或者@BotFather中输入/start，/newbot，并关注机器人
-let ChatID = ''; //可以为空，或者@userinfobot中获取，/start
-let TG = 0; //小白勿动， 开发者专用，1 为推送所有的访问信息，0 为不推送订阅转换后端的访问信息与异常访问
+let mytoken = 'auto';
+let BotToken = '';
+let ChatID = '';
+let TG = 0;
 let FileName = 'CF-Workers-SUB';
-let SUBUpdateTime = 6; //自定义订阅更新时间，单位小时
-let total = 99; //TB
-let timestamp = 4102329600000; //2099-12-31
+let SUBUpdateTime = 6;
+let total = 99;
+let timestamp = 4102329600000;
 
-let MainData = ``;  // 初始化为空字符串,后续从环境变量获取
+let MainData = ``;
 let urls = [];
-let subconverter = "SUBAPI.fxxk.dedyn.io"; 
+let subconverter = "SUBAPI.fxxk.dedyn.io";
 let subconfig = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini";
 let subProtocol = 'https';
-let PROXYIP = ''; 
+let PROXYIP = '';
 
-const TIMEOUT_MS = 5000; // 请求超时时间设置为5秒
-const TEST_TIMEOUT = 3000; // 节点测试超时时间3秒
+const TIMEOUT_MS = 5000;
+const TEST_TIMEOUT = 3000;
 
 export default {
     async fetch(request, env) {
@@ -26,10 +26,7 @@ export default {
             const token = url.searchParams.get('token');
 
             if (url.pathname === '/health') {
-                return new Response('OK', {
-                    status: 200,
-                    headers: { 'Content-Type': 'text/plain' }
-                });
+                return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } });
             }
 
             mytoken = env.TOKEN || mytoken;
@@ -37,7 +34,7 @@ export default {
             ChatID = env.TGID || ChatID;
             TG = env.TG || TG;
             subconverter = env.SUBAPI || subconverter;
-            
+
             if (subconverter.includes("http://")) {
                 subconverter = subconverter.split("//")[1];
                 subProtocol = 'http';
@@ -107,8 +104,8 @@ export default {
             let 追加UA = determineUserAgent(url);
             const 请求订阅响应内容 = await getSUB(urls, request, 追加UA, userAgentHeader);
             console.log('Subscription Response:', 请求订阅响应内容);
-            req_data += 请求订阅响应内容[0].join('\n');
-            订阅转换URL += "|" + 请求订阅响应内容[1];
+            req_data += 请求订阅响应内容[0].join('\n') || '';
+            订阅转换URL += 请求订阅响应内容[1] ? "|" + 请求订阅响应内容[1] : '';
             console.log('Combined req_data:', req_data);
 
             if (env.WARP) 订阅转换URL += "|" + (await ADD(env.WARP)).join("|");
@@ -314,7 +311,6 @@ async function sendMessage(type, ip, add_data = "") {
 
 function base64Decode(str) {
     try {
-        // 移除可能的换行符并补齐填充字符
         str = str.replace(/\s/g, '').replace(/=+$/, '');
         while (str.length % 4 !== 0) str += '=';
         
@@ -438,10 +434,11 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
     let 订阅转换URLs = "";
     let 异常订阅 = "";
 
+    console.log('Starting to fetch subscription URLs:', api);
     const responses = await Promise.allSettled(api.map(apiUrl => 
         getUrl(request, apiUrl, 追加UA, userAgentHeader, new AbortController())
         .then(async response => {
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status} from ${apiUrl}`);
             const content = await response.text();
             console.log(`Processing subscription URL: ${apiUrl}, Raw content: ${content.substring(0, 100)}...`);
             return { url: apiUrl, content };
@@ -457,26 +454,27 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
                 continue;
             }
 
-            // 检查是否为 Clash 或 Sing-box 配置
             if (content.includes('proxies') && content.includes('proxy-groups')) {
+                console.log(`Detected Clash config from ${apiUrl}`);
                 订阅转换URLs += "|" + apiUrl;
                 continue;
             } else if (content.includes('outbounds') && content.includes('inbounds')) {
+                console.log(`Detected Sing-box config from ${apiUrl}`);
                 订阅转换URLs += "|" + apiUrl;
                 continue;
             }
 
-            // 检查是否为节点列表
             if (content.includes('://')) {
+                console.log(`Detected node list from ${apiUrl}`);
                 const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
                 const validNodes = await Promise.all(nodes.map(node => testNode(node).then(isValid => isValid ? node : null)));
                 newapi += validNodes.filter(n => n).join('\n') + '\n';
                 continue;
             }
 
-            // 尝试 Base64 解码
             if (isValidBase64(content)) {
                 const decoded = base64Decode(content);
+                console.log(`Decoded Base64 from ${apiUrl}: ${decoded.substring(0, 100)}...`);
                 if (decoded && decoded.includes('://')) {
                     const nodes = decoded.split('\n').filter(line => line.trim() && line.includes('://'));
                     const validNodes = await Promise.all(nodes.map(node => testNode(node).then(isValid => isValid ? node : null)));
@@ -485,19 +483,19 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
                 }
             }
 
-            // 尝试 JSON 解析（常见于某些订阅服务）
             try {
                 const jsonData = JSON.parse(content);
                 if (jsonData && jsonData.nodes) {
+                    console.log(`Detected JSON nodes from ${apiUrl}`);
                     const nodes = jsonData.nodes.filter(node => node && node.protocol && node.server);
                     newapi += nodes.map(node => `${node.protocol}://${node.server}:${node.port}`).join('\n') + '\n';
                     continue;
                 }
             } catch (e) {
-                console.log(`Not a JSON subscription: ${apiUrl}`);
+                console.log(`Not a JSON subscription: ${apiUrl}, error: ${e.message}`);
             }
 
-            // 如果无法解析，标记为异常订阅
+            console.log(`Unrecognized format from ${apiUrl}, marking as invalid`);
             const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(apiUrl)}`;
             异常订阅 += `${异常订阅LINK}\n`;
         } else {
