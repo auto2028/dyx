@@ -19,6 +19,7 @@ let PROXYIP = '';
 // 配置常量
 const TIMEOUT_MS = 5000; // 请求超时时间设置为5秒
 const DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB chunks for large data processing
+const TEST_TIMEOUT = 3000; // 节点测试超时时间3秒
 
 export default {
     async fetch(request, env) {
@@ -418,6 +419,36 @@ async function proxyURL(proxyURL, url, PROXYIP) {
     }
 }
 
+// 新增节点测试函数
+async function testNode(nodeUrl) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT);
+        
+        // 提取节点的主机和端口
+        const urlMatch = nodeUrl.match(/@([^:]+):(\d+)/);
+        if (!urlMatch) return false;
+        
+        const host = urlMatch[1];
+        const port = parseInt(urlMatch[2]);
+        
+        // 简单的TCP连接测试
+        const response = await fetch(`http://${host}:${port}`, {
+            method: 'HEAD',
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Node-Test/1.0'
+            }
+        });
+        
+        clearTimeout(timeout);
+        return response.ok;
+    } catch (error) {
+        console.log(`Node ${nodeUrl} test failed: ${error.message}`);
+        return false;
+    }
+}
+
 async function getSUB(api, request, 追加UA, userAgentHeader) {
     if (!api || api.length === 0) {
         return [[], ""];
@@ -437,6 +468,7 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
             .then(response => response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`)))
         ));
 
+        // 处理所有订阅响应
         for (const response of responses) {
             if (response.status === 'fulfilled') {
                 const content = response.value || 'null';
@@ -445,9 +477,22 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
                 } else if (content.includes('outbounds') && content.includes('inbounds')) {
                     订阅转换URLs += "|" + response.apiUrl;
                 } else if (content.includes('://')) {
-                    newapi += content + '\n';
+                    // 分割节点列表并测试每个节点
+                    const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
+                    const validNodes = await Promise.all(nodes.map(async node => {
+                        const isValid = await testNode(node);
+                        return isValid ? node : null;
+                    }));
+                    // 只添加有效节点
+                    newapi += validNodes.filter(n => n !== null).join('\n') + '\n';
                 } else if (isValidBase64(content)) {
-                    newapi += base64Decode(content) + '\n';
+                    const decoded = base64Decode(content);
+                    const nodes = decoded.split('\n').filter(line => line.trim() && line.includes('://'));
+                    const validNodes = await Promise.all(nodes.map(async node => {
+                        const isValid = await testNode(node);
+                        return isValid ? node : null;
+                    }));
+                    newapi += validNodes.filter(n => n !== null).join('\n') + '\n';
                 } else {
                     const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(response.apiUrl)}`;
                     console.log(异常订阅LINK);
