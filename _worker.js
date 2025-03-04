@@ -7,29 +7,24 @@ let SUBUpdateTime = 6; //自定义订阅更新时间，单位小时
 let total = 99;//TB
 let timestamp = 4102329600000;//2099-12-31
 
-//节点链接 + 订阅链接
 let MainData = ``;  // 初始化为空字符串,后续从环境变量获取
-
 let urls = [];
 let subconverter = "SUBAPI.fxxk.dedyn.io"; 
 let subconfig = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini";
 let subProtocol = 'https';
 let PROXYIP = ''; 
 
-// 配置常量
 const TIMEOUT_MS = 5000; // 请求超时时间设置为5秒
-const DEFAULT_CHUNK_SIZE = 1024 * 1024; // 1MB chunks for large data processing
 const TEST_TIMEOUT = 3000; // 节点测试超时时间3秒
 
 export default {
     async fetch(request, env) {
         try {
-            const userAgentHeader = request.headers.get('User-Agent');
-            const userAgent = userAgentHeader ? userAgentHeader.toLowerCase() : "null";
+            const userAgentHeader = request.headers.get('User-Agent') || "null";
+            const userAgent = userAgentHeader.toLowerCase();
             const url = new URL(request.url);
             const token = url.searchParams.get('token');
 
-            // 健康检查端点
             if (url.pathname === '/health') {
                 return new Response('OK', {
                     status: 200,
@@ -37,14 +32,12 @@ export default {
                 });
             }
 
-            // 从环境变量加载配置
             mytoken = env.TOKEN || mytoken;
             BotToken = env.TGTOKEN || BotToken;
             ChatID = env.TGID || ChatID;
             TG = env.TG || TG;
             subconverter = env.SUBAPI || subconverter;
             
-            // 处理子转换器协议
             if (subconverter.includes("http://")) {
                 subconverter = subconverter.split("//")[1];
                 subProtocol = 'http';
@@ -52,18 +45,14 @@ export default {
                 subconverter = subconverter.split("//")[1] || subconverter;
             }
 
-            // 加载其他环境变量
             subconfig = env.SUBCONFIG || subconfig;
             FileName = env.SUBNAME || FileName;
             MainData = env.LINK || MainData;
-            if(env.LINKSUB) urls = await ADD(env.LINKSUB);
+            if (env.LINKSUB) urls = await ADD(env.LINKSUB);
             PROXYIP = env.PROXYIP || PROXYIP;
             SUBUpdateTime = env.SUBUPTIME || SUBUpdateTime;
 
-            // Debug logging
-            if (PROXYIP) {
-                console.log('Using PROXYIP:', PROXYIP);
-            }
+            if (PROXYIP) console.log('Using PROXYIP:', PROXYIP);
 
             const currentDate = new Date();
             currentDate.setHours(0, 0, 0, 0);
@@ -74,7 +63,6 @@ export default {
             total = total * 1099511627776;
             let expire = Math.floor(timestamp / 1000);
 
-            // 重新汇总链接
             let 重新汇总所有链接 = await ADD(MainData + '\n' + urls.join('\n'));
             let 自建节点 = "";
             let 订阅链接 = "";
@@ -87,13 +75,14 @@ export default {
             }
             MainData = 自建节点;
             urls = await ADD(订阅链接);
+            console.log('MainData:', MainData);
+            console.log('Subscription URLs:', urls);
 
-            // 验证访问权限
             if (!(token == mytoken || token == fakeToken || url.pathname == ("/" + mytoken) || url.pathname.includes("/" + mytoken + "?"))) {
                 if (TG == 1 && url.pathname !== "/" && url.pathname !== "/favicon.ico") {
                     await sendMessage(`#异常访问 ${FileName}`, 
                         request.headers.get('CF-Connecting-IP'),
-                        `UA: ${userAgent}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
+                        `UA: ${userAgent}\n域名: ${url.hostname}\n入口: ${url.pathname + url.search}`);
                 }
                 if (env.URL302) {
                     return Response.redirect(env.URL302, 302);
@@ -102,47 +91,37 @@ export default {
                 } else {
                     return new Response(await nginx(), {
                         status: 200,
-                        headers: {
-                            'Content-Type': 'text/html; charset=UTF-8',
-                        },
+                        headers: { 'Content-Type': 'text/html; charset=UTF-8' }
                     });
                 }
             }
 
-            // 发送订阅获取通知
             await sendMessage(`#获取订阅 ${FileName}`, 
                 request.headers.get('CF-Connecting-IP'), 
-                `UA: ${userAgentHeader}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}`);
+                `UA: ${userAgentHeader}\n域名: ${url.hostname}\n入口: ${url.pathname + url.search}`);
 
-            // 确定订阅格式
             let 订阅格式 = determineSubscriptionFormat(userAgent, url);
-
             let 订阅转换URL = `${url.origin}/${await MD5MD5(fakeToken)}?token=${fakeToken}`;
             let req_data = MainData;
 
-            // 确定 UA
             let 追加UA = determineUserAgent(url);
-            
-            // 获取订阅内容
             const 请求订阅响应内容 = await getSUB(urls, request, 追加UA, userAgentHeader);
-            console.log(请求订阅响应内容);
+            console.log('Subscription Response:', 请求订阅响应内容);
             req_data += 请求订阅响应内容[0].join('\n');
             订阅转换URL += "|" + 请求订阅响应内容[1];
+            console.log('Combined req_data:', req_data);
 
-            if(env.WARP) 订阅转换URL += "|" + (await ADD(env.WARP)).join("|");
+            if (env.WARP) 订阅转换URL += "|" + (await ADD(env.WARP)).join("|");
 
-            // 处理订阅内容
             const encodedData = new TextEncoder().encode(req_data);
             const text = new TextDecoder().decode(encodedData);
-
-            // 去重处理
             const uniqueLines = new Set(text.split('\n'));
             const result = [...uniqueLines].join('\n');
+            console.log('Processed result:', result);
 
-            // Base64 编码处理
             let base64Data = await safeBase64Encode(result);
+            console.log('Base64 encoded data:', base64Data);
 
-            // 根据订阅格式返回响应
             return await generateResponse(订阅格式, base64Data, token, fakeToken, 订阅转换URL, subProtocol, subconverter, subconfig, SUBUpdateTime, UD, total, expire, FileName);
 
         } catch (error) {
@@ -155,7 +134,6 @@ export default {
     }
 };
 
-// 修改后的 Base64 编码函数
 async function safeBase64Encode(data) {
     const encoder = new TextEncoder();
     const uint8Array = encoder.encode(data);
@@ -219,11 +197,12 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
     };
 
     if (format === 'base64' || token === fakeToken) {
+        console.log('Returning base64 format');
         return new Response(base64Data, { headers });
     }
 
-    let subconverterUrl;
     const baseUrl = `${subProtocol}://${subconverter}/sub?url=${encodeURIComponent(订阅转换URL)}&insert=false&config=${encodeURIComponent(subconfig)}&emoji=true&list=false`;
+    let subconverterUrl;
 
     switch(format) {
         case 'clash':
@@ -242,15 +221,18 @@ async function generateResponse(format, base64Data, token, fakeToken, 订阅转�
             subconverterUrl = `${baseUrl}&target=loon`;
             break;
         default:
+            console.log('Returning default base64 format');
             return new Response(base64Data, { headers });
     }
 
+    console.log('Subconverter URL:', subconverterUrl);
     try {
-        const subconverterResponse = await fetch(subconverterUrl);
+        const subconverterResponse = await fetch(subconverterUrl, { timeout: TIMEOUT_MS });
         if (!subconverterResponse.ok) {
             throw new Error(`Subconverter request failed: ${subconverterResponse.status}`);
         }
         let content = await subconverterResponse.text();
+        console.log('Subconverter response:', content);
         if (format === 'clash') {
             content = await clashFix(content);
         }
@@ -288,12 +270,10 @@ async function nginx() {
     <h1>Welcome to nginx!</h1>
     <p>If you see this page, the nginx web server is successfully installed and
     working. Further configuration is required.</p>
-    
     <p>For online documentation and support please refer to
     <a href="http://nginx.org/">nginx.org</a>.<br/>
     Commercial support is available at
     <a href="http://nginx.com/">nginx.com</a>.</p>
-    
     <p><em>Thank you for using nginx.</em></p>
     </body>
     </html>
@@ -344,15 +324,12 @@ function base64Decode(str) {
 async function MD5MD5(text) {
     try {
         const encoder = new TextEncoder();
-        
         const firstPass = await crypto.subtle.digest('MD5', encoder.encode(text));
         const firstPassArray = Array.from(new Uint8Array(firstPass));
         const firstHex = firstPassArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
         const secondPass = await crypto.subtle.digest('MD5', encoder.encode(firstHex.slice(7, 27)));
         const secondPassArray = Array.from(new Uint8Array(secondPass));
         const secondHex = secondPassArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        
         return secondHex.toLowerCase();
     } catch (error) {
         console.error('MD5MD5 error:', error);
@@ -361,13 +338,9 @@ async function MD5MD5(text) {
 }
 
 function clashFix(content) {
-    if(!content.includes('wireguard') || !content) {
-        return content;
-    }
-
+    if (!content.includes('wireguard') || !content) return content;
     const lines = content.includes('\r\n') ? content.split('\r\n') : content.split('\n');
     let result = '';
-    
     for (let line of lines) {
         if (line.includes('type: wireguard')) {
             const 备改内容 = `, mtu: 1280, udp: true`;
@@ -377,16 +350,13 @@ function clashFix(content) {
             result += line + '\n';
         }
     }
-
     return result;
 }
 
 async function proxyURL(proxyURL, url, PROXYIP) {
     try {
         const URLs = await ADD(proxyURL);
-        if (!URLs.length) {
-            throw new Error('No valid proxy URLs found');
-        }
+        if (!URLs.length) throw new Error('No valid proxy URLs found');
         
         const fullURL = URLs[Math.floor(Math.random() * URLs.length)];
         const parsedURL = new URL(fullURL);
@@ -406,10 +376,7 @@ async function proxyURL(proxyURL, url, PROXYIP) {
         };
 
         const response = await fetch(newURL.toString(), requestOptions);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const newResponse = new Response(response.body, {
             status: response.status,
@@ -420,7 +387,6 @@ async function proxyURL(proxyURL, url, PROXYIP) {
         newResponse.headers.set('X-Original-URL', fullURL);
         newResponse.headers.set('X-Proxy-IP', PROXYIP || 'Not Used');
         newResponse.headers.set('X-Debug-Info', 'Proxied by CF Worker');
-
         return newResponse;
     } catch (error) {
         console.error('Proxy Error:', error);
@@ -442,9 +408,7 @@ async function testNode(nodeUrl) {
         const response = await fetch(`http://${host}:${port}`, {
             method: 'HEAD',
             signal: controller.signal,
-            headers: {
-                'User-Agent': 'Node-Test/1.0'
-            }
+            headers: { 'User-Agent': 'Node-Test/1.0' }
         });
         
         clearTimeout(timeout);
@@ -457,6 +421,7 @@ async function testNode(nodeUrl) {
 
 async function getSUB(api, request, 追加UA, userAgentHeader) {
     if (!api || api.length === 0) {
+        console.log('No subscription URLs provided');
         return [[], ""];
     }
 
@@ -464,43 +429,59 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
     let 订阅转换URLs = "";
     let 异常订阅 = "";
     const controller = new AbortController();
-    const timeout = setTimeout(() => {
-        controller.abort();
-    }, TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     try {
         const responses = await Promise.allSettled(api.map(apiUrl => 
             getUrl(request, apiUrl, 追加UA, userAgentHeader, controller)
-            .then(response => response.ok ? response.text() : Promise.reject(new Error(`HTTP ${response.status}`)))
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.text().then(text => ({ url: apiUrl, content: text }));
+            })
         ));
 
         for (const response of responses) {
             if (response.status === 'fulfilled') {
-                const content = response.value || 'null';
+                const { url: apiUrl, content } = response.value;
+                console.log(`Processing subscription from ${apiUrl}:`, content);
+                if (!content || content === 'null') {
+                    console.log(`Empty content from ${apiUrl}`);
+                    continue;
+                }
                 if (content.includes('proxies') && content.includes('proxy-groups')) {
-                    订阅转换URLs += "|" + response.apiUrl;
+                    订阅转换URLs += "|" + apiUrl;
                 } else if (content.includes('outbounds') && content.includes('inbounds')) {
-                    订阅转换URLs += "|" + response.apiUrl;
+                    订阅转换URLs += "|" + apiUrl;
                 } else if (content.includes('://')) {
                     const nodes = content.split('\n').filter(line => line.trim() && line.includes('://'));
+                    console.log(`Nodes found in ${apiUrl}:`, nodes);
                     const validNodes = await Promise.all(nodes.map(async node => {
                         const isValid = await testNode(node);
+                        console.log(`Node ${node} is ${isValid ? 'valid' : 'invalid'}`);
                         return isValid ? node : null;
                     }));
-                    newapi += validNodes.filter(n => n !== null).join('\n') + '\n';
+                    const validNodeList = validNodes.filter(n => n !== null);
+                    console.log(`Valid nodes from ${apiUrl}:`, validNodeList);
+                    newapi += validNodeList.join('\n') + '\n';
                 } else if (isValidBase64(content)) {
                     const decoded = base64Decode(content);
+                    console.log(`Decoded Base64 from ${apiUrl}:`, decoded);
                     const nodes = decoded.split('\n').filter(line => line.trim() && line.includes('://'));
                     const validNodes = await Promise.all(nodes.map(async node => {
                         const isValid = await testNode(node);
+                        console.log(`Node ${node} is ${isValid ? 'valid' : 'invalid'}`);
                         return isValid ? node : null;
                     }));
-                    newapi += validNodes.filter(n => n !== null).join('\n') + '\n';
+                    const validNodeList = validNodes.filter(n => n !== null);
+                    console.log(`Valid nodes from decoded ${apiUrl}:`, validNodeList);
+                    newapi += validNodeList.join('\n') + '\n';
                 } else {
-                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(response.apiUrl)}`;
-                    console.log(异常订阅LINK);
+                    const 异常订阅LINK = `trojan://CMLiussss@127.0.0.1:8888?security=tls&allowInsecure=1&type=tcp&headerType=none#异常订阅_${encodeURIComponent(apiUrl)}`;
+                    console.log(`Invalid subscription: ${异常订阅LINK}`);
                     异常订阅 += `${异常订阅LINK}\n`;
                 }
+            } else {
+                console.log(`Failed to fetch subscription: ${response.reason}`);
             }
         }
     } catch (error) {
@@ -510,6 +491,7 @@ async function getSUB(api, request, 追加UA, userAgentHeader) {
     }
 
     const 订阅内容 = await ADD(newapi + 异常订阅);
+    console.log('Final subscription content:', 订阅内容);
     return [订阅内容, 订阅转换URLs];
 }
 
@@ -525,9 +507,9 @@ async function getUrl(request, targetUrl, 追加UA, userAgentHeader, controller)
         signal: controller.signal
     });
 
-    console.log(`请求URL: ${targetUrl}`);
-    console.log(`请求头: ${JSON.stringify([...newHeaders])}`);
-    console.log(`请求方法: ${request.method}`);
+    console.log(`Fetching URL: ${targetUrl}`);
+    console.log(`Request headers: ${JSON.stringify([...newHeaders])}`);
+    console.log(`Request method: ${request.method}`);
 
     return fetch(modifiedRequest);
 }
