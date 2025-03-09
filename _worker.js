@@ -29,6 +29,7 @@ export default {
                 return new Response('OK', { status: 200, headers: { 'Content-Type': 'text/plain' } });
             }
 
+            // 从环境变量中获取配置
             mytoken = env.TOKEN || mytoken;
             BotToken = env.TGTOKEN || BotToken;
             ChatID = env.TGID || ChatID;
@@ -46,8 +47,12 @@ export default {
             FileName = env.SUBNAME || FileName;
             MainData = env.LINK || MainData;
             if (env.LINKSUB) urls = await ADD(env.LINKSUB);
-            PROXYIP = env.PROXYIP || PROXYIP;
+            PROXYIP = env.PROXYIP || PROXYIP; // 获取 PROXYIP 环境变量
             SUBUpdateTime = env.SUBUPTIME || SUBUpdateTime;
+
+            // 添加日志以调试 PROXYIP
+            console.log('PROXYIP from env:', env.PROXYIP);
+            console.log('Final PROXYIP value:', PROXYIP);
 
             if (PROXYIP) console.log('Using PROXYIP:', PROXYIP);
 
@@ -84,7 +89,7 @@ export default {
                 if (env.URL302) {
                     return Response.redirect(env.URL302, 302);
                 } else if (env.URL) {
-                    return await proxyURL(env.URL, url, PROXYIP);
+                    return await proxyURL(env.URL, url, PROXYIP); // 传递 PROXYIP
                 } else {
                     return new Response(await nginx(), {
                         status: 200,
@@ -377,10 +382,13 @@ async function proxyURL(proxyURL, url, PROXYIP) {
                 'Host': parsedURL.hostname,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             },
-            cf: PROXYIP ? { resolveOverride: PROXYIP } : {}
+            cf: PROXYIP ? { resolveOverride: PROXYIP } : {} // 使用 PROXYIP 设置 resolveOverride
         };
 
+        console.log('Fetch options:', JSON.stringify(requestOptions)); // 记录 fetch 配置
+
         const response = await fetch(newURL.toString(), requestOptions);
+        console.log('Fetch response status:', response.status);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const newResponse = new Response(response.body, {
