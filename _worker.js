@@ -12,7 +12,6 @@ let urls = [];
 let subconverter = "SUBAPI.fxxk.dedyn.io";
 let subconfig = "https://raw.githubusercontent.com/cmliu/ACL4SSR/main/Clash/config/ACL4SSR_Online_MultiCountry.ini";
 let subProtocol = 'https';
-let PROXYIP = '';
 
 const TIMEOUT_MS = 5000;
 const TEST_TIMEOUT = 3000;
@@ -47,14 +46,21 @@ export default {
             FileName = env.SUBNAME || FileName;
             MainData = env.LINK || MainData;
             if (env.LINKSUB) urls = await ADD(env.LINKSUB);
-            PROXYIP = env.PROXYIP || PROXYIP; // 获取 PROXYIP 环境变量
+            const PROXYIP = env.PROXYIP; // 直接获取 PROXYIP 环境变量
             SUBUpdateTime = env.SUBUPTIME || SUBUpdateTime;
 
             // 添加日志以调试 PROXYIP
             console.log('PROXYIP from env:', env.PROXYIP);
             console.log('Final PROXYIP value:', PROXYIP);
 
-            if (PROXYIP) console.log('Using PROXYIP:', PROXYIP);
+            // 检查 PROXYIP 是否存在
+            if (!PROXYIP) {
+                console.error('PROXYIP 未设置，请在 Cloudflare Pages 控制台检查环境变量');
+                return new Response('错误：PROXYIP 环境变量未设置', { 
+                    status: 500, 
+                    headers: { 'Content-Type': 'text/plain; charset=UTF-8' } 
+                });
+            }
 
             const currentDate = new Date();
             currentDate.setHours(0, 0, 0, 0);
@@ -382,7 +388,7 @@ async function proxyURL(proxyURL, url, PROXYIP) {
                 'Host': parsedURL.hostname,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             },
-            cf: PROXYIP ? { resolveOverride: PROXYIP } : {} // 使用 PROXYIP 设置 resolveOverride
+            cf: { resolveOverride: PROXYIP } // 强制使用 PROXYIP 设置 resolveOverride
         };
 
         console.log('Fetch options:', JSON.stringify(requestOptions)); // 记录 fetch 配置
@@ -398,7 +404,7 @@ async function proxyURL(proxyURL, url, PROXYIP) {
         });
 
         newResponse.headers.set('X-Original-URL', fullURL);
-        newResponse.headers.set('X-Proxy-IP', PROXYIP || 'Not Used');
+        newResponse.headers.set('X-Proxy-IP', PROXYIP);
         newResponse.headers.set('X-Debug-Info', 'Proxied by CF Worker');
         return newResponse;
     } catch (error) {
