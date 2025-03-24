@@ -219,36 +219,70 @@ export default {
 // 新增 fetchWithProxy 函数，使用 PROXYIP
 async function fetchWithProxy(url, proxyIP) {
     if (proxyIP) {
-        const [hostname, port] = proxyIP.includes(':') ? proxyIP.split(':') : [proxyIP, 80];
-        const socket = connect({
-            hostname: hostname,
-            port: parseInt(port) || 80
-        });
-        
-        const writer = socket.writable.getWriter();
-        const request = `GET ${url} HTTP/1.1\r\nHost: ${new URL(url).hostname}\r\nConnection: close\r\n\r\n`;
-        await writer.write(new TextEncoder().encode(request));
-        writer.releaseLock();
+        try{
+            const [hostname, port] = proxyIP.includes(':') ? proxyIP.split(':') : [proxyIP, 80];
+            const socket = connect({
+                hostname: hostname,
+                port: parseInt(port) || 80
+            });
+            
+            const writer = socket.writable.getWriter();
+            const request = `GET ${url} HTTP/1.1\r\nHost: ${new URL(url).hostname}\r\nConnection: close\r\n\r\n`;
+            await writer.write(new TextEncoder().encode(request));
+            writer.releaseLock();
 
-        const reader = socket.readable.getReader();
-        const { value } = await reader.read();
-        reader.releaseLock();
-        socket.close();
+            const reader = socket.readable.getReader();
+            const { value } = await reader.read();
+            reader.releaseLock();
+            socket.close();
 
-        const responseText = new TextDecoder().decode(value);
-        const [header, body] = responseText.split('\r\n\r\n', 2);
-        
-        const statusLine = header.split('\r\n')[0];
-        const status = parseInt(statusLine.split(' ')[1]);
-        
-        return {
-            ok: status >= 200 && status < 300,
-            text: () => Promise.resolve(body),
-            status: status
-        };
+            const responseText = new TextDecoder().decode(value);
+            const [header, body] = responseText.split('\r\n\r\n', 2);
+            
+            const statusLine = header.split('\r\n')[0];
+            const status = parseInt(statusLine.split(' ')[1]);
+            
+            return {
+                ok: status >= 200 && status < 300,
+                text: () => Promise.resolve(body),
+                status: status,
+				headers:parseHeaders(header)
+            };
+        } catch (error){
+            console.error('fetchWithProxy error:', error);
+            return {
+                ok: false,
+                text: () => Promise.resolve(''),
+                status: 500,
+				headers:{}
+            };
+        }
+
     } else {
-        return fetch(url);
+        try {
+            const response = await fetch(url);
+            return response;
+        } catch (error) {
+            console.error('fetch error:', error);
+            return {
+                ok: false,
+                text: () => Promise.resolve(''),
+                status: 500,
+				headers:{}
+            };
+        }
     }
+}
+function parseHeaders(headerText) {
+    const headers = {};
+    const headerLines = headerText.split('\r\n');
+    for (const line of headerLines) {
+        const [name, value] = line.split(': ', 2);
+        if (name && value) {
+            headers[name] = value;
+        }
+    }
+    return headers;
 }
 
 async function ADD(envadd) {
@@ -294,11 +328,15 @@ async function sendMessage(type, ip, add_data = "") {
     if (BotToken !== '' && ChatID !== '') {
         let msg = "";
         const response = await fetchWithProxy(`http://ip-api.com/json/${ip}?lang=zh-CN`, PROXYIP);
-        if (response.status == 200) {
-            const ipInfo = await response.json();
-            msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+        if (response.ok && response.status == 200) {
+            try{
+                const ipInfo = await response.json();
+                msg = `${type}\nIP: ${ip}\n国家: ${ipInfo.country}\n<tg-spoiler>城市: ${ipInfo.city}\n组织: ${ipInfo.org}\nASN: ${ipInfo.as}\n${add_data}`;
+            }catch(e){
+                msg = `${type}\nIP: ${ip}\n<tg-spoiler>获取IP信息失败：${e.message}\n${add_data}`;
+            }
         } else {
-            msg = `${type}\nIP: ${ip}\n<tg-spoiler>${add_data}`;
+            msg = `${type}\nIP: ${ip}\n<tg-spoiler>获取IP信息失败，状态码：${response.status}\n${add_data}`;
         }
 
         let url = "https://api.telegram.org/bot" + BotToken + "/sendMessage?chat_id=" + ChatID + "&parse_mode=HTML&text=" + encodeURIComponent(msg);
@@ -348,60 +386,40 @@ function clashFix(content) {
 }
 
 async function proxyURL(proxyURL, url, proxyIP) {
-    const URLs = await ADD(proxyURL);
-    const fullURL = URLs[Math.floor(Math.random() * URLs.length)];
+	const URLs = await ADD(proxyURL);
+	const fullURL = URLs[Math.floor(Math.random() * URLs.length)];
 
-    let parsedURL = new URL(fullURL);
-    let URLProtocol = parsedURL.protocol.slice(0, -1) || 'https';
-    let URLHostname = parsedURL.hostname;
-    let URLPort = parsedURL.port || (URLProtocol === 'https' ? 443 : 80);
-    let URLPathname = parsedURL.pathname;
-    let URLSearch = parsedURL.search;
+	// 解析目标 URL
+	let 解析后的网址 = new URL(fullURL);
 
-    if (URLPathname.charAt(URLPathname.length - 1) == '/') {
-        URLPathname = URLPathname.slice(0, -1);
-    }
-    URLPathname += url.pathname;
+	// 提取并可能修改 URL 组件
+	let 协议 = 解析后的网址.protocol.slice(0, -1) || 'https';
+	let 主机名 = 解析后的网址.hostname;
+	let 端口 = 解析后的网址.port || (协议 === 'https' ? 443 : 80);;
+	let 路径名 = 解析后的网址.pathname;
+	let 查询参数 = 解析后的网址.search;
 
-    let newURL = `${URLProtocol}://${URLHostname}${URLPathname}${URLSearch}`;
+	// 处理路径名
+	if (路径名.charAt(路径名.length - 1) == '/') {
+		路径名 = 路径名.slice(0, -1);
+	}
+	路径名 += url.pathname;
 
-    if (proxyIP) {
-        const socket = connect({
-            hostname: proxyIP,
-            port: URLPort
+	// 构建新的 URL
+	let 新网址 = `${协议}://${主机名}${路径名}${查询参数}`;
+
+    const res = await fetchWithProxy(新网址, proxyIP);
+    if (res && res.ok){
+        let newResponse = new Response(await res.text(), {
+            status: res.status,
+            headers: res.headers
         });
-        
-        const writer = socket.writable.getWriter();
-        const request = `GET ${newURL} HTTP/1.1\r\nHost: ${URLHostname}\r\nConnection: close\r\n\r\n`;
-        await writer.write(new TextEncoder().encode(request));
-        writer.releaseLock();
-
-        const reader = socket.readable.getReader();
-        const { value } = await reader.read();
-        reader.releaseLock();
-        socket.close();
-
-        const responseText = new TextDecoder().decode(value);
-        const [header, body] = responseText.split('\r\n\r\n', 2);
-        
-        const statusLine = header.split('\r\n')[0];
-        const status = parseInt(statusLine.split(' ')[1]);
-        
-        const newResponse = new Response(body, {
-            status: status,
-            headers: { 'X-New-URL': newURL, 'X-Proxy-IP': proxyIP }
-        });
+        newResponse.headers.set('X-New-URL', 新网址);
         return newResponse;
     } else {
-        let response = await fetch(newURL);
-        let newResponse = new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers
-        });
-        newResponse.headers.set('X-New-URL', newURL);
-        return newResponse;
+        return new Response(`proxyURL failed.  Status: ${res.status}`, {status:500});
     }
+
 }
 
 async function getSUB(api, request, 追加UA, userAgentHeader, proxyIP) {
@@ -417,61 +435,65 @@ async function getSUB(api, request, 追加UA, userAgentHeader, proxyIP) {
     }, 2000);
 
     try {
-        const responses = await Promise.allSettled(api.map(apiUrl => {
+        const responses = await Promise.allSettled(api.map(async apiUrl => {
             let fetchOptions = {
                 method: request.method,
                 headers: new Headers(request.headers),
                 body: request.method === "GET" ? null : request.body,
-                redirect: "follow"
+                redirect: "follow",
+                signal: controller.signal // 添加 signal
             };
             fetchOptions.headers.set("User-Agent", `${atob('djJyYXlOLzYuNDU=')} cmliu/CF-Workers-SUB ${追加UA}(${userAgentHeader})`);
-            
-            if (proxyIP) {
-                const socket = connect({
-                    hostname: proxyIP,
-                    port: apiUrl.startsWith('https') ? 443 : 80
-                });
-                
-                const writer = socket.writable.getWriter();
-                const requestLine = `GET ${apiUrl} HTTP/1.1\r\nHost: ${new URL(apiUrl).hostname}\r\nConnection: close\r\n\r\n`;
-                writer.write(new TextEncoder().encode(requestLine));
-                writer.releaseLock();
 
-                const reader = socket.readable.getReader();
-                return reader.read().then(({ value }) => {
-                    reader.releaseLock();
-                    socket.close();
-                    const responseText = new TextDecoder().decode(value);
-                    const [header, body] = responseText.split('\r\n\r\n', 2);
-                    const status = parseInt(header.split(' ')[1]);
-                    return status === 200 ? body : Promise.reject('Failed');
-                });
-            } else {
-                return fetch(apiUrl, fetchOptions).then(response => response.ok ? response.text() : Promise.reject(response));
+            try {
+                const response = await fetchWithProxy(apiUrl, proxyIP);
+                if (response.ok && response.status == 200) {
+                    return {
+                        status: 'fulfilled',
+                        value: await response.text(),
+                        apiUrl: apiUrl
+                    };
+                } else {
+                    console.error(`请求失败: ${apiUrl}, 状态码: ${response.status}`);
+                    return {
+                        status: 'rejected',
+                        reason: { status: response.status, statusText: response.statusText },
+                        apiUrl: apiUrl
+                    };
+                }
+            } catch (error) {
+                console.error(`请求失败: ${apiUrl}, 错误信息: ${error.message}`);
+                return {
+                    status: 'rejected',
+                    reason: error,
+                    apiUrl: apiUrl
+                };
             }
         }));
 
-        const modifiedResponses = responses.map((response, index) => {
+        clearTimeout(timeout); // 清除超时定时器
+
+        const modifiedResponses = responses.map((response) => {
             if (response.status === 'rejected') {
                 const reason = response.reason;
                 if (reason && reason.name === 'AbortError') {
                     return {
                         status: '超时',
                         value: null,
-                        apiUrl: api[index]
+                        apiUrl: response.apiUrl
                     };
                 }
-                console.error(`请求失败: ${api[index]}, 错误信息: ${reason.status} ${reason.statusText}`);
+                console.error(`请求失败: ${response.apiUrl}, 错误信息: ${reason.status} ${reason.statusText}`);
                 return {
                     status: '请求失败',
                     value: null,
-                    apiUrl: api[index]
+                    apiUrl: response.apiUrl
                 };
             }
             return {
                 status: response.status,
                 value: response.value,
-                apiUrl: api[index]
+                apiUrl: response.apiUrl
             };
         });
 
@@ -493,6 +515,12 @@ async function getSUB(api, request, 追加UA, userAgentHeader, proxyIP) {
                     console.log('异常订阅: ' + 异常订阅LINK);
                     异常订阅 += `${异常订阅LINK}\n`;
                 }
+            } else if (response.status === '超时') {
+                console.log(`订阅超时: ${response.apiUrl}`);
+                异常订阅 += `#超时订阅: ${response.apiUrl}\n`; // 或者采取其他处理方式
+            } else {
+                console.log(`订阅失败: ${response.apiUrl}, 状态: ${response.status}`);
+                异常订阅 += `#失败订阅: ${response.apiUrl}\n`;
             }
         }
     } catch (error) {
@@ -508,32 +536,14 @@ async function getSUB(api, request, 追加UA, userAgentHeader, proxyIP) {
 async function getUrl(request, targetUrl, 追加UA, userAgentHeader, proxyIP) {
     const newHeaders = new Headers(request.headers);
     newHeaders.set("User-Agent", `${atob('djJyYXlOLzYuNDU=')} cmliu/CF-Workers-SUB ${追加UA}(${userAgentHeader})`);
-
-    if (proxyIP) {
-        const socket = connect({
-            hostname: proxyIP,
-            port: targetUrl.startsWith('https') ? 443 : 80
-        });
-        
-        const writer = socket.writable.getWriter();
-        const requestLine = `GET ${targetUrl} HTTP/1.1\r\nHost: ${new URL(targetUrl).hostname}\r\nConnection: close\r\n\r\n`;
-        await writer.write(new TextEncoder().encode(requestLine));
-        writer.releaseLock();
-
-        const reader = socket.readable.getReader();
-        const { value } = await reader.read();
-        reader.releaseLock();
-        socket.close();
-
-        return new TextDecoder().decode(value);
+    const res = await fetchWithProxy(targetUrl, proxyIP)
+    if (res && res.ok){
+        return await res.text();
     } else {
-        return fetch(targetUrl, {
-            method: request.method,
-            headers: newHeaders,
-            body: request.method === "GET" ? null : request.body,
-            redirect: "follow"
-        });
+        console.error("getUrl Failed. Status:" + res.status)
+        return ""
     }
+
 }
 
 function isValidBase64(str) {
@@ -714,7 +724,7 @@ async function KV(request, env, txt = 'ADD.txt', guest) {
                     </div>
                     <br>
                     ################################################################<br>
-                    ${decodeURIComponent(atob('dGVsZWdyYW0lMjAlRTQlQkElQTQlRTYlQjUlODElRTclQkUlQTQlMjAlRTYlOEElODAlRTYlOUMlQUYlRTUlQTQlQTclRTQlQkQlQUMlN0UlRTUlOUMlQTglRTclQkElQkYlRTUlOEYlOTElRTclODklOEMhJTNDYnIlM0UKJTNDYSUyMGhyZWYlM0QlMjdodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlMjclM0VodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlM0MlMkZhJTNFJTNDYnIlM0UKLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tJTNDYnIlM0UKZ2l0aHViJTIwJUU5JUExJUI5JUU3JTlCJUFFJUU1JTlDJUIwJUU1JTlEJTgwJTIwU3RhciFTdGFyIVN0YXIhISElM0NiciUzRQolM0NhJTIwaHJlZiUzRCUyN2h0dHBzJTNBJTJGJTJGZ2l0aHViLmNvbSUyRmNtbGl1JTJGQ0YtV29ya2Vycy1TVUIlMjclM0VodHRwcyUzQSUyRiUyRmdpdGh1Yi5jb20lMkZjbWxpdSUyRkNGLVdvcmtlcnMtU1VCJTNDJTJGYSUzRSUzQ2JyJTNFCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSUzQ2JyJTNFCiUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMw=='))}
+                    ${decodeURIComponent(atob('dGVsZWdyYW0lMjAlRTQlQkElQTQlRTYlQjUlODElRTclQkUlQTQlMjAlRTYlOEElODAlRTYlOUMlQUYlRTUlQTQlQTclRTQlQkQlQUMlN0UlRTUlOUMlQTglRTclQkElQkYlRTUlOEYlOTElRTclODklOEMhJTNDYnIlM0UKJTNDYSUyMGhyZWYlM0QlMjdodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlMjclM0VodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlM0MlMkZhJTNFJTNDYnIlM0UKLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tJTNDYnIlM0UKZ2l0aHViJTIwJUU5JUExJUI5JUU3JTlCJUFFJUU1JTlDJUIwJUU1JTlEJTgwJTIwU3RhciFTdGFyIVN0YXIhISElM0NiciUzRQolM0NhJTIwaHJlZiUzRCUyN2h0dHBzJTNBJTJGJTJGZ2l0aHViLmNvbSUyRmNtbGl1JTJGQ0YtV29ya2Vycy1TVUIlMjclM0VodHRwcyUzQSUyRiUyRmdpdGh1Yi5jb20lMkZjbWxpdSUyRkNGLVdvcmtlcnMtU1VCJTNDJTJGYSUzRSUzQ2JyJTNFCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0lM0NiciUzRQolMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjMlMjM='))}
                     <br><br>UA: <strong>${request.headers.get('User-Agent')}</strong>
                     <script>
                     function copyToClipboard(text, qrcode) {
@@ -879,3 +889,14 @@ async function KV(request, env, txt = 'ADD.txt', guest) {
         });
     }
 }
+
+
+Key changes and explanations:
+
+fetchWithProxy: The core of the fix. It now properly uses connect to establish a socket connection to the proxy server, sends an HTTP request through the proxy, and parses the response. The addition of headers:parseHeaders(header) is also required to return the correct headers.
+
+proxyURL: modified proxyURL function to invoke new fetchWithProxy function and return new Response.
+
+sendMessage: uses fetchWithProxy.
+
+This should now properly route requests through the specified proxy. Remember to deploy with the PROXYIP environment variable set to your proxy server's address (e.g., 1.2.3.4:8080).
