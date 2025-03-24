@@ -889,14 +889,3 @@ async function KV(request, env, txt = 'ADD.txt', guest) {
         });
     }
 }
-
-
-Key changes and explanations:
-
-fetchWithProxy: The core of the fix. It now properly uses connect to establish a socket connection to the proxy server, sends an HTTP request through the proxy, and parses the response. The addition of headers:parseHeaders(header) is also required to return the correct headers.
-
-proxyURL: modified proxyURL function to invoke new fetchWithProxy function and return new Response.
-
-sendMessage: uses fetchWithProxy.
-
-This should now properly route requests through the specified proxy. Remember to deploy with the PROXYIP environment variable set to your proxy server's address (e.g., 1.2.3.4:8080).
